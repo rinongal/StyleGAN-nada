@@ -87,7 +87,6 @@ part_templates = [
     'the ears of a {}.',
     'an eye of a {}.',
     'the tongue of a {}.',
-    # 'the whiskers of the {}.',
     'the fur of the {}.',
     'colorful {} fur.',
     'a snout of a {}.',
@@ -98,10 +97,6 @@ part_templates = [
     'a neck of a {}',
     'the head of the {}',
 ]
-
-# part_templates = [
-#     '{}',
-# ]
 
 imagenet_templates_small = [
     'a photo of a {}.',

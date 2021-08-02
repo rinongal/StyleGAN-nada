@@ -1,17 +1,16 @@
 import sys
 import os
 sys.path.insert(0, os.path.abspath('../'))
-sys.path.insert(0, os.path.abspath('../pytorch-CycleGAN-and-pix2pix'))
 
 
 import torch
 import torchvision.transforms as transforms
 
 import numpy as np
+import copy
 
 from functools import partial
 
-from pytorch_CycleGAN_and_pix2pix.models import networks as CycleGAN
 from ZSSGAN.model.sg2_model import Generator, Discriminator
 from ZSSGAN.criteria.clip_loss import CLIPLoss       
 
@@ -44,7 +43,13 @@ class SG2Generator(torch.nn.Module):
             return list(self.get_all_layers())[1:3] + list(self.get_all_layers()[4][2:10])   
         if phase == 'shape':
             # layers 1-2
-             return list(self.get_all_layers()[4][0:2])  
+             return list(self.get_all_layers())[1:3] + list(self.get_all_layers()[4][0:2])
+        if phase == 'no_fine':
+            # const + layers 1-10
+             return list(self.get_all_layers())[1:3] + list(self.get_all_layers()[4][:10])
+        if phase == 'shape_expanded':
+            # const + layers 1-10
+             return list(self.get_all_layers())[1:3] + list(self.get_all_layers()[4][0:3])
         if phase == 'all':
             # everything, including mapping and ToRGB
             return self.get_all_layers() 
@@ -79,6 +84,12 @@ class SG2Generator(torch.nn.Module):
         styles = [self.generator.style(s) for s in styles]
         return styles
 
+    def get_s_code(self, styles, input_is_latent=False):
+        return self.generator.get_s_code(styles, input_is_latent)
+
+    def modulation_layers(self):
+        return self.generator.modulation_layers
+
     #TODO Maybe convert to kwargs
     def forward(self,
         styles,
@@ -87,9 +98,10 @@ class SG2Generator(torch.nn.Module):
         truncation=1,
         truncation_latent=None,
         input_is_latent=False,
+        input_is_s_code=False,
         noise=None,
         randomize_noise=True):
-        return self.generator(styles, return_latents=return_latents, truncation=truncation, truncation_latent=self.mean_latent, noise=noise, randomize_noise=randomize_noise, input_is_latent=input_is_latent)
+        return self.generator(styles, return_latents=return_latents, truncation=truncation, truncation_latent=self.mean_latent, noise=noise, randomize_noise=randomize_noise, input_is_latent=input_is_latent, input_is_s_code=input_is_s_code)
 
 class SG2Discriminator(torch.nn.Module):
     def __init__(self, checkpoint_path, img_size=256, channel_multiplier=2, device='cuda:0'):
@@ -136,36 +148,87 @@ class ZSSGAN(torch.nn.Module):
     def __init__(self, args):
         super(ZSSGAN, self).__init__()
 
-        device = 'cuda:0'
+        self.args = args
+
+        self.device = 'cuda:0'
 
         # Set up frozen (source) generator
-        self.generator_frozen = SG2Generator(args.frozen_gen_ckpt, img_size=args.size).to(device)
+        self.generator_frozen = SG2Generator(args.frozen_gen_ckpt, img_size=args.size).to(self.device)
         self.generator_frozen.freeze_layers()
         self.generator_frozen.eval()
 
-        # discriminator is currently unused. TODO: re-enable as required or remove.
-
-        # self.discriminator_frozen = SG2Discriminator(args.frozen_gen_ckpt, img_size=512).to(device)
-        # self.discriminator_frozen.freeze_layers()
-        # self.discriminator_frozen.eval()
-
         # Set up trainable (target) generator
-        self.generator_trainable = SG2Generator(args.train_gen_ckpt, img_size=args.size).to(device)
+        self.generator_trainable = SG2Generator(args.train_gen_ckpt, img_size=args.size).to(self.device)
         self.generator_trainable.freeze_layers()
         self.generator_trainable.unfreeze_layers(self.generator_trainable.get_training_layers(args.phase))
         self.generator_trainable.train()
 
-        # Set up cycle networks
-        self.cycle_target_to_src = CycleGAN.define_G(3, 3, 64, "unet_256",  "instance", True, "normal", 0.02, [0]).to(device)
-        self.cycle_src_to_target = CycleGAN.define_G(3, 3, 64, "unet_256",  "instance", True, "normal", 0.02, [0]).to(device)
-
         # Losses
-        self.clip_loss = CLIPLoss(device, lambda_direction=args.lambda_direction, lambda_patch=args.lambda_patch, lambda_global=args.lambda_global)
+        self.clip_loss_models = {model_name: CLIPLoss(self.device, 
+                                                      lambda_direction=args.lambda_direction, 
+                                                      lambda_patch=args.lambda_patch, 
+                                                      lambda_global=args.lambda_global, 
+                                                      lambda_manifold=args.lambda_manifold, 
+                                                      lambda_texture=args.lambda_texture,
+                                                      clip_model=model_name) 
+                                for model_name in args.clip_models}
+
+        self.clip_model_weights = {model_name: weight for model_name, weight in zip(args.clip_models, args.clip_model_weights)}
+
         self.mse_loss  = torch.nn.MSELoss()
 
         self.source_class = args.source_class
         self.target_class = args.target_class
 
+        self.auto_layer_k     = args.auto_layer_k
+        self.auto_layer_iters = args.auto_layer_iters
+
+    def determine_opt_layers(self):
+
+        sample_z = torch.randn(self.args.auto_layer_batch, 512, device=self.device)
+
+        initial_w_codes = self.generator_frozen.style([sample_z])
+        initial_w_codes = initial_w_codes[0].unsqueeze(1).repeat(1, self.generator_frozen.generator.n_latent, 1)
+
+        w_codes = torch.Tensor(initial_w_codes.cpu().detach().numpy()).to(self.device)
+
+        w_codes.requires_grad = True
+
+        w_optim = torch.optim.SGD([w_codes], lr=0.01)
+
+        for _ in range(self.auto_layer_iters):
+            w_codes_for_gen = w_codes.unsqueeze(0)
+            generated_from_w = self.generator_trainable(w_codes_for_gen, input_is_latent=True)[0]
+
+            w_loss = [self.clip_model_weights[model_name] * self.clip_loss_models[model_name].global_clip_loss(generated_from_w, self.target_class) for model_name in self.clip_model_weights.keys()]
+            w_loss = torch.sum(torch.stack(w_loss))
+            
+            w_optim.zero_grad()
+            w_loss.backward()
+            w_optim.step()
+        
+        layer_weights = torch.abs(w_codes - initial_w_codes).mean(dim=-1).mean(dim=0)
+        chosen_layer_idx = torch.topk(layer_weights, self.auto_layer_k)[1].cpu().numpy()
+
+        all_layers = list(self.generator_trainable.get_all_layers())
+
+        conv_layers = list(all_layers[4])
+        rgb_layers = list(all_layers[6]) # currently not optimized
+
+        idx_to_layer = all_layers[2:4] + conv_layers # add initial convs to optimization
+
+        chosen_layers = [idx_to_layer[idx] for idx in chosen_layer_idx] 
+
+        # uncomment to add RGB layers to optimization.
+
+        # for idx in chosen_layer_idx:
+        #     if idx % 2 == 1 and idx >= 3 and idx < 14:
+        #         chosen_layers.append(rgb_layers[(idx - 3) // 2])
+
+        # uncomment to add learned constant to optimization
+        # chosen_layers.append(all_layers[1])
+                
+        return chosen_layers
 
     def forward(
         self,
@@ -179,6 +242,16 @@ class ZSSGAN(torch.nn.Module):
         randomize_noise=True,
     ):
 
+        if self.training and self.auto_layer_iters > 0:
+            self.generator_trainable.unfreeze_layers()
+            train_layers = self.determine_opt_layers()
+
+            if not isinstance(train_layers, list):
+                train_layers = [train_layers]
+
+            self.generator_trainable.freeze_layers()
+            self.generator_trainable.unfreeze_layers(train_layers)
+
         with torch.no_grad():
             if input_is_latent:
                 w_styles = styles
@@ -188,15 +261,10 @@ class ZSSGAN(torch.nn.Module):
             frozen_img = self.generator_frozen(w_styles, input_is_latent=True, truncation=truncation, randomize_noise=randomize_noise)[0]
 
         trainable_img = self.generator_trainable(w_styles, input_is_latent=True, truncation=truncation, randomize_noise=randomize_noise)[0]
-
-        translated_src_to_target = self.cycle_src_to_target(frozen_img)
-        translated_target_to_src = self.cycle_target_to_src(trainable_img)
-
-        cycle_loss = self.mse_loss(translated_target_to_src, frozen_img) + self.mse_loss(translated_src_to_target, trainable_img)
         
-        clip_loss = self.clip_loss(frozen_img, self.source_class, trainable_img, self.target_class)
+        clip_loss = torch.sum(torch.stack([self.clip_model_weights[model_name] * self.clip_loss_models[model_name](frozen_img, self.source_class, trainable_img, self.target_class) for model_name in self.clip_model_weights.keys()]))
 
-        return [frozen_img, trainable_img], [translated_src_to_target, translated_target_to_src], clip_loss, cycle_loss
+        return [frozen_img, trainable_img], clip_loss
 
     def pivot(self):
         par_frozen = dict(self.generator_frozen.named_parameters())

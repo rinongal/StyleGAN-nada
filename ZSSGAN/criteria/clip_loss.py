@@ -29,15 +29,15 @@ class DirectionLoss(torch.nn.Module):
         return self.loss_func(x, y)
 
 class CLIPLoss(torch.nn.Module):
-    def __init__(self, device, lambda_direction=1., lambda_patch=0., lambda_global=0., patch_loss_type='mae', direction_loss_type='cosine'):
+    def __init__(self, device, lambda_direction=1., lambda_patch=0., lambda_global=0., lambda_manifold=0., lambda_texture=0., patch_loss_type='mae', direction_loss_type='cosine', clip_model='ViT-B/32'):
         super(CLIPLoss, self).__init__()
 
         self.device = device
-        self.model, clip_preprocess = clip.load("ViT-B/32", device=self.device)
+        self.model, clip_preprocess = clip.load(clip_model, device=self.device)
         
         self.preprocess = transforms.Compose([transforms.Normalize(mean=[-1.0, -1.0, -1.0], std=[2.0, 2.0, 2.0])] + # Un-normalize from [-1.0, 1.0] (GAN output) to [0, 1].
                                               clip_preprocess.transforms[:2] +                                      # to match CLIP input scale assumptions
-                                              clip_preprocess.transforms[4:])                                       # + skip convert PIL to tensor.
+                                              clip_preprocess.transforms[4:])                                       # + skip convert PIL to tensor
 
         self.text_direction = None
 
@@ -50,6 +50,19 @@ class CLIPLoss(torch.nn.Module):
         self.lambda_global    = lambda_global
         self.lambda_patch     = lambda_patch
         self.lambda_direction = lambda_direction
+        self.lambda_manifold  = lambda_manifold
+        self.lambda_texture   = lambda_texture
+
+        self.src_text_features = None
+        self.target_text_features = None
+        self.angle_loss = torch.nn.L1Loss()
+
+        self.model_cnn, preprocess_cnn = clip.load("RN50", device=self.device)
+        self.preprocess_cnn = transforms.Compose([transforms.Normalize(mean=[-1.0, -1.0, -1.0], std=[2.0, 2.0, 2.0])] + # Un-normalize from [-1.0, 1.0] (GAN output) to [0, 1].
+                                        preprocess_cnn.transforms[:2] +                                                 # to match CLIP input scale assumptions
+                                        preprocess_cnn.transforms[4:])                                                  # + skip convert PIL to tensor
+
+        self.texture_loss = torch.nn.MSELoss()
 
     def tokenize(self, strings: list):
         return clip.tokenize(strings).to(self.device)
@@ -60,6 +73,10 @@ class CLIPLoss(torch.nn.Module):
     def encode_images(self, images: torch.Tensor) -> torch.Tensor:
         images = self.preprocess(images).to(self.device)
         return self.model.encode_image(images)
+
+    def encode_images_with_cnn(self, images: torch.Tensor) -> torch.Tensor:
+        images = self.preprocess_cnn(images).to(self.device)
+        return self.model_cnn.encode_image(images)
     
     def distance_with_templates(self, img: torch.Tensor, class_str: str, templates=imagenet_templates) -> torch.Tensor:
 
@@ -70,19 +87,23 @@ class CLIPLoss(torch.nn.Module):
 
         return 1. - similarity
     
-    def get_text_features(self, class_str: str, templates=imagenet_templates) -> torch.Tensor:
+    def get_text_features(self, class_str: str, templates=imagenet_templates, norm: bool = True) -> torch.Tensor:
         template_text = self.compose_text_with_templates(class_str, templates)
 
         tokens = clip.tokenize(template_text).to(self.device)
 
         text_features = self.encode_text(tokens).detach()
-        text_features /= text_features.norm(dim=-1, keepdim=True)
+
+        if norm:
+            text_features /= text_features.norm(dim=-1, keepdim=True)
 
         return text_features
 
-    def get_image_features(self, img: torch.Tensor) -> torch.Tensor:
+    def get_image_features(self, img: torch.Tensor, norm: bool = True) -> torch.Tensor:
         image_features = self.encode_images(img)
-        image_features /= image_features.clone().norm(dim=-1, keepdim=True)
+        
+        if norm:
+            image_features /= image_features.clone().norm(dim=-1, keepdim=True)
 
         return image_features
 
@@ -95,12 +116,37 @@ class CLIPLoss(torch.nn.Module):
 
         return text_direction
     
+    def set_text_features(self, source_class: str, target_class: str) -> None:
+        source_features = self.get_text_features(source_class).mean(axis=0, keepdim=True)
+        self.src_text_features = source_features / source_features.norm(dim=-1, keepdim=True)
+
+        target_features = self.get_text_features(target_class).mean(axis=0, keepdim=True)
+        self.target_text_features = target_features / target_features.norm(dim=-1, keepdim=True)
+
+    def clip_angle_loss(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
+        if self.src_text_features is None:
+            self.set_text_features(source_class, target_class)
+
+        cos_text_angle = self.target_text_features @ self.src_text_features.T
+        text_angle = torch.acos(cos_text_angle)
+
+        src_img_features = self.get_image_features(src_img).unsqueeze(2)
+        target_img_features = self.get_image_features(target_img).unsqueeze(1)
+
+        cos_img_angle = torch.clamp(target_img_features @ src_img_features, min=-1.0, max=1.0)
+        img_angle = torch.acos(cos_img_angle)
+
+        text_angle = text_angle.unsqueeze(0).repeat(img_angle.size()[0], 1, 1)
+        cos_text_angle = cos_text_angle.unsqueeze(0).repeat(img_angle.size()[0], 1, 1)
+
+        return self.angle_loss(cos_img_angle, cos_text_angle)
+
     def compose_text_with_templates(self, text: str, templates=imagenet_templates) -> list:
         return [template.format(text) for template in templates]
             
     def clip_directional_loss(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
 
-        if self.text_direction is None: # done here and not in init to avoid change of seed when drawing fixed latents. TODO: move before running pre-release experiments.
+        if self.text_direction is None:
             self.text_direction = self.compute_text_direction(source_class, target_class)
 
         src_encoding    = self.get_image_features(src_img)
@@ -130,7 +176,6 @@ class CLIPLoss(torch.nn.Module):
                                         np.random.randint(half_size, height - half_size, size=(batch_size * num_patches, 1))], axis=1)
 
         return patch_centers
-
 
     def generate_patches(self, img: torch.Tensor, patch_centers, size):
         batch_size  = img.shape[0]
@@ -176,15 +221,6 @@ class CLIPLoss(torch.nn.Module):
 
         return self.patch_loss(src_scores, target_scores)
 
-    def compute_text_direction(self, source_class: str, target_class: str) -> torch.Tensor:
-        source_features = self.get_text_features(source_class)
-        target_features = self.get_text_features(target_class)
-
-        text_direction = (target_features - source_features).mean(axis=0, keepdim=True)
-        text_direction /= text_direction.norm(dim=-1, keepdim=True)
-
-        return text_direction
-
     def patch_directional_loss(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
 
         if self.patch_text_directions is None: # done here and not in init to avoid change of seed when drawing fixed latents. TODO: move before running pre-release experiments.
@@ -214,7 +250,13 @@ class CLIPLoss(torch.nn.Module):
 
         return patch_class_scores.mean()
 
-    def forward(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str):
+    def cnn_feature_loss(self, src_img: torch.Tensor, target_img: torch.Tensor) -> torch.Tensor:
+        src_features = self.encode_images_with_cnn(src_img)
+        target_features = self.encode_images_with_cnn(target_img)
+
+        return self.texture_loss(src_features, target_features)
+
+    def forward(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str, texture_image: torch.Tensor = None):
         clip_loss = 0.0
 
         if self.lambda_global:
@@ -225,5 +267,11 @@ class CLIPLoss(torch.nn.Module):
 
         if self.lambda_direction:
             clip_loss += self.lambda_direction * self.clip_directional_loss(src_img, source_class, target_img, target_class)
+
+        if self.lambda_manifold:
+            clip_loss += self.lambda_manifold * self.clip_angle_loss(src_img, source_class, target_img, target_class)
+
+        if self.lambda_texture and (texture_image is not None):
+            clip_loss += self.lambda_texture * self.cnn_feature_loss(texture_image, target_img)
 
         return clip_loss

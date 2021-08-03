@@ -1,6 +1,6 @@
 # StyleGAN-NADA: CLIP-Guided Domain Adaptation of Image Generators
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](http://colab.research.google.com/github/rinongal/stylegan-nada/blob/main/stylegan_nada.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](http://colab.research.google.com/github/rinongal/stylegan-nada/blob/main/stylegan_nada.ipynb) [![arXiv](https://img.shields.io/badge/arXiv-2108.00946-b31b1b.svg)](https://arxiv.org/abs/2108.00946)
 
 [[Project Website](https://stylegan-nada.github.io/)]
 
@@ -87,6 +87,21 @@ Additionally, we are planning on releasing a dockerized version of our model in 
 The concept of using CLIP to guide StyleGAN generation results was introduced in [StyleCLIP](https://arxiv.org/abs/2103.17249) (Patashnik et al.).
 
 We invert real images into the GAN's latent space using [ReStyle](https://arxiv.org/abs/2104.02699) (Alaluf et al.)
+
+## Citation
+
+If you make use of our work, please cite our paper:
+
+```
+@misc{gal2021stylegannada,
+      title={StyleGAN-NADA: CLIP-Guided Domain Adaptation of Image Generators}, 
+      author={Rinon Gal and Or Patashnik and Haggai Maron and Gal Chechik and Daniel Cohen-Or},
+      year={2021},
+      eprint={2108.00946},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
 
 ## Additional examples:
 

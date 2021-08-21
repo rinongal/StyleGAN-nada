@@ -28,7 +28,9 @@ In some cases, you may need to switch to the [e4e](https://github.com/omertov/en
 
 ## Updates
 
-**21/08/2021** Added the ability to mimic styles from an image set. See the usage section.
+**21/08/2021 (A)** Added the ability to mimic styles from an image set. See the usage section. <br>
+**21/08/2021 (B)** Added dockerized UI tool. <br>
+**21/08/2021 (C)** Added link to drive with pre-trained models.
 
 ## Generator Domain Adaptation
 
@@ -84,8 +86,6 @@ python train.py --size 1024
 Where you should adjust size to match the size of the pre-trained model, and the source_class and target_class descriptions control the direction of change.
 For an explenation of each argument (and a few additional options), please consult ZSSGAN/options/train_options.py. For most modifications these default parameters should be good enough. See the colab notebook for more detailed directions.
 
-Additionally, we are planning on releasing a dockerized version of our model in the coming days, including a simple training UI. 
-
 **21/08/2021** Instead of using source and target texts, you can now target a style represented by a few images. Simply replace the `--source_class` and `--target_class` options with:
 
 ```
@@ -96,6 +96,30 @@ where the directory should contain a few images (png, jpg or jpeg) with the styl
 Some results of converting an FFHQ model using children's drawings, LSUN Cars using Dali paintings and LSUN Cat using abstract sketches:
 
 ![](img/few_shot_samples.jpg)
+
+## Pre-Trained Models
+
+We provide a [Google Drive](https://drive.google.com/drive/folders/1Z76nD8pXIL2O5f6xV8VjM4DUCmhbzn0l?usp=sharing) containing an assortment of models used in the paper, tweets and other locations.
+If you want access to a model not yet included in the drive, please let us know.
+
+## Docker
+
+We now provide a simple dockerized interface for training models.
+The UI currently supports a subset of the colab options, but does not require repeated setups.
+
+In order to use the docker version, you must have a CUDA compatible GPU and must install [nvidia-docker](https://github.com/NVIDIA/nvidia-docker) and [docker-compose](https://docs.docker.com/compose/install/) first.
+
+After cloning the repo, simply run:
+```
+cd StyleGAN-nada/
+docker-compose up
+```
+
+* Downloading the docker for the first time may take a few minutes.
+* While the docker is running, the UI should be available under http://localhost:8888/
+* The UI was tested using an RTX3080 GPU with 16GB of RAM. Smaller GPUs may run into memory limits with large models.
+
+If you find the UI useful and want it expended to allow easier access to saved models, support for real image editing etc., please let us know.
 
 ## Related Works
 

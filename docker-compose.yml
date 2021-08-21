@@ -1,0 +1,9 @@
+version: "3.9"
+
+services:
+    nada:
+        image: "rinong/sg_nada:v1.0"
+        ports: 
+          - "8888:8888"
+        runtime: nvidia
+

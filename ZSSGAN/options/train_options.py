@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-
+from utils.file_utils import get_dir_img_list
 
 class TrainOptions(object):
 
@@ -36,7 +36,9 @@ class TrainOptions(object):
             help="Strength of directional clip loss",
         )
 
-        # Non direction losses are unused in the paper. They are left here for those who want to experiment.
+        ######################################################################################################
+        # Non direction losses are unused in the paper. They are left here for those who want to experiment. #
+        ######################################################################################################
         self.parser.add_argument(
             "--lambda_patch",
             type=float,
@@ -64,6 +66,9 @@ class TrainOptions(object):
             default=0.0,
             help="Strength of manifold constraint term"
         )
+        ################################
+        # End of Non-direction losses. #
+        ################################
 
         self.parser.add_argument(
             "--save_interval",
@@ -89,7 +94,7 @@ class TrainOptions(object):
             default="cat",
             help="Textual description of the target class.",
         )
-        
+
         # Used for manual layer choices. Leave as None to use paper layers.
         self.parser.add_argument(
             "--phase",
@@ -153,6 +158,24 @@ class TrainOptions(object):
             help="Crop images to LSUN car aspect ratio."
         )
 
+        #######################################################
+        # Arguments for image style targets (instead of text) #
+        #######################################################
+        self.parser.add_argument(
+            "--style_img_dir",
+            type=str,
+            help="Path to a directory containing images (png, jpg or jpeg) with a specific style to mimic"
+        )
+
+        self.parser.add_argument(
+            "--img2img_batch",
+            type=int,
+            default=16,
+            help="Number of images to generate for source embedding calculation."
+        )
+        #################################
+        # End of image-style arguments. #
+        #################################
         
         # Original rosinality args. Most of these are not needed and should probably be removed.
 
@@ -266,5 +289,7 @@ class TrainOptions(object):
             raise ValueError("Number of clip model names must match number of model weights")
 
         opts.train_gen_ckpt = opts.train_gen_ckpt or opts.frozen_gen_ckpt
+
+        opts.target_img_list = get_dir_img_list(opts.style_img_dir) if opts.style_img_dir else None
 
         return opts

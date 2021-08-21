@@ -6,6 +6,7 @@ import numpy as np
 
 import math
 import clip
+from PIL import Image
 
 from ZSSGAN.utils.text_templates import imagenet_templates, part_templates, imagenet_templates_small
 
@@ -34,13 +35,14 @@ class CLIPLoss(torch.nn.Module):
 
         self.device = device
         self.model, clip_preprocess = clip.load(clip_model, device=self.device)
+
+        self.clip_preprocess = clip_preprocess
         
         self.preprocess = transforms.Compose([transforms.Normalize(mean=[-1.0, -1.0, -1.0], std=[2.0, 2.0, 2.0])] + # Un-normalize from [-1.0, 1.0] (GAN output) to [0, 1].
                                               clip_preprocess.transforms[:2] +                                      # to match CLIP input scale assumptions
                                               clip_preprocess.transforms[4:])                                       # + skip convert PIL to tensor
 
-        self.text_direction = None
-
+        self.target_direction      = None
         self.patch_text_directions = None
 
         self.patch_loss     = DirectionLoss(patch_loss_type)
@@ -115,7 +117,30 @@ class CLIPLoss(torch.nn.Module):
         text_direction /= text_direction.norm(dim=-1, keepdim=True)
 
         return text_direction
-    
+
+    def compute_img2img_direction(self, source_images: torch.Tensor, target_images: list) -> torch.Tensor:
+        with torch.no_grad():
+
+            src_encoding = self.get_image_features(source_images)
+            src_encoding = src_encoding.mean(dim=0, keepdim=True)
+
+            target_encodings = []
+            for target_img in target_images:
+                preprocessed = self.clip_preprocess(Image.open(target_img)).unsqueeze(0).to(self.device)
+                
+                encoding = self.model.encode_image(preprocessed)
+                encoding /= encoding.norm(dim=-1, keepdim=True)
+
+                target_encodings.append(encoding)
+            
+            target_encoding = torch.cat(target_encodings, axis=0)
+            target_encoding = target_encoding.mean(dim=0, keepdim=True)
+
+            direction = target_encoding - src_encoding
+            direction /= direction.norm(dim=-1, keepdim=True)
+
+        return direction
+
     def set_text_features(self, source_class: str, target_class: str) -> None:
         source_features = self.get_text_features(source_class).mean(axis=0, keepdim=True)
         self.src_text_features = source_features / source_features.norm(dim=-1, keepdim=True)
@@ -146,8 +171,8 @@ class CLIPLoss(torch.nn.Module):
             
     def clip_directional_loss(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
 
-        if self.text_direction is None:
-            self.text_direction = self.compute_text_direction(source_class, target_class)
+        if self.target_direction is None:
+            self.target_direction = self.compute_text_direction(source_class, target_class)
 
         src_encoding    = self.get_image_features(src_img)
         target_encoding = self.get_image_features(target_img)
@@ -155,7 +180,7 @@ class CLIPLoss(torch.nn.Module):
         edit_direction = (target_encoding - src_encoding)
         edit_direction /= edit_direction.clone().norm(dim=-1, keepdim=True)
         
-        return self.direction_loss(edit_direction, self.text_direction).mean()
+        return self.direction_loss(edit_direction, self.target_direction).mean()
 
     def global_clip_loss(self, img: torch.Tensor, text) -> torch.Tensor:
         if not isinstance(text, list):
@@ -223,7 +248,7 @@ class CLIPLoss(torch.nn.Module):
 
     def patch_directional_loss(self, src_img: torch.Tensor, source_class: str, target_img: torch.Tensor, target_class: str) -> torch.Tensor:
 
-        if self.patch_text_directions is None: # done here and not in init to avoid change of seed when drawing fixed latents. TODO: move before running pre-release experiments.
+        if self.patch_text_directions is None:
             src_part_classes = self.compose_text_with_templates(source_class, part_templates)
             target_part_classes = self.compose_text_with_templates(target_class, part_templates)
 

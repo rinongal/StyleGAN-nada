@@ -6,6 +6,12 @@ from torchvision import utils
 
 import cv2
 
+def get_dir_img_list(dir_path, valid_exts=[".png", ".jpg", ".jpeg"]):
+    file_list = [os.path.join(dir_path, file_name) for file_name in os.listdir(dir_path) 
+                 if os.path.splitext(file_name)[1].lower() in valid_exts]
+
+    return file_list
+
 def copytree(src, dst, symlinks=False, ignore=None):
     if not os.path.exists(dst):
         os.makedirs(dst)

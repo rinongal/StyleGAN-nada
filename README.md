@@ -26,6 +26,10 @@ We've also included inversion in the notebook (using [ReStyle](https://github.co
 Most edits will work well with the [pSp](https://github.com/eladrich/pixel2style2pixel) version of ReStyle, which also allows for more accurate reconstructions.
 In some cases, you may need to switch to the [e4e](https://github.com/omertov/encoder4editing) based encoder for better editing at the cost of reconstruction accuracy.
 
+## Updates
+
+**21/08/2021** Added the ability to mimic styles from an image set. See the usage section.
+
 ## Generator Domain Adaptation
 
 We provide many examples of converted generators in our [project page](https://stylegan-nada.github.io/). Here are a few samples:
@@ -81,6 +85,17 @@ Where you should adjust size to match the size of the pre-trained model, and the
 For an explenation of each argument (and a few additional options), please consult ZSSGAN/options/train_options.py. For most modifications these default parameters should be good enough. See the colab notebook for more detailed directions.
 
 Additionally, we are planning on releasing a dockerized version of our model in the coming days, including a simple training UI. 
+
+**21/08/2021** Instead of using source and target texts, you can now target a style represented by a few images. Simply replace the `--source_class` and `--target_class` options with:
+
+```
+--style_img_dir /path/to/img/dir
+```
+where the directory should contain a few images (png, jpg or jpeg) with the style you want to mimic. There is no need to normalize or preprocess the images in any form.
+
+Some results of converting an FFHQ model using children's drawings, LSUN Cars using Dali paintings and LSUN Cat using abstract sketches:
+
+![](img/few_shot_samples.jpg)
 
 ## Related Works
 

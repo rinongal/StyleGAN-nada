@@ -182,6 +182,19 @@ class ZSSGAN(torch.nn.Module):
 
         self.auto_layer_k     = args.auto_layer_k
         self.auto_layer_iters = args.auto_layer_iters
+        
+        if args.target_img_list is not None:
+            self.set_img2img_direction()
+
+    def set_img2img_direction(self):
+        with torch.no_grad():
+            sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
+            generated = self.generator_trainable([sample_z])[0]
+
+            for _, model in self.clip_loss_models.items():
+                direction = model.compute_img2img_direction(generated, self.args.target_img_list)
+
+                model.target_direction = direction
 
     def determine_opt_layers(self):
 

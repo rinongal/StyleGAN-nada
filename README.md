@@ -28,6 +28,7 @@ In some cases, you may need to switch to the [e4e](https://github.com/omertov/en
 
 ## Updates
 
+**22/08/2021** Added a script for generating cross-domain interpolation videos (similar to the top video in the project page). <br>
 **21/08/2021 (A)** Added the ability to mimic styles from an image set. See the usage section. <br>
 **21/08/2021 (B)** Added dockerized UI tool. <br>
 **21/08/2021 (C)** Added link to drive with pre-trained models.
@@ -120,6 +121,27 @@ docker-compose up
 * The UI was tested using an RTX3080 GPU with 16GB of RAM. Smaller GPUs may run into memory limits with large models.
 
 If you find the UI useful and want it expended to allow easier access to saved models, support for real image editing etc., please let us know.
+
+## Editing Video
+
+In order to generate a cross-domain editing video (such as the one at the top of our project page), prepare a set of edited latent codes in the original domain and run the following `generate_videos.py` script in the `ZSSGAN` directory:
+
+```
+python generate_videos.py --ckpt /model_dir/pixar.pt             \
+                                 /model_dir/ukiyoe.pt            \
+                                 /model_dir/edvard_munch.pt      \
+                                 /model_dir/botero.pt            \
+                          --out_dir /output/video/               \
+                          --source_latent /latents/latent000.npy \
+                          --target_latents /latents/
+```
+
+* The argument to `--ckpt` is a list of model checkpoints used to fill the grid. 
+  * The number of models must be a perfect square, e.g. 1, 4, 9...
+* The argument to `--target_latents` can be either a directory containing a set of `.npy` w-space latent codes, or a list of individual files.
+* Please see the script for more details.
+
+We provide [example latent codes](https://drive.google.com/file/d/1E4lkAKJhZlfLeKOtKrRcqN-Te-8IotYm/view?usp=sharing) for the same identity used in our video. If you want to generate your own, we recommend using [StyleCLIP](https://github.com/orpatashnik/StyleCLIP), [InterFaceGAN](https://github.com/genforce/interfacegan), [StyleFlow](https://github.com/RameenAbdal/StyleFlow), [GANSpace](https://github.com/harskish/ganspace) or any other latent space editing method. 
 
 ## Related Works
 

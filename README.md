@@ -136,6 +136,7 @@ python generate_videos.py --ckpt /model_dir/pixar.pt             \
                           --target_latents /latents/
 ```
 
+* The script relies on ffmpeg to function. On linux it can be installed by running `sudo apt install ffmpeg`
 * The argument to `--ckpt` is a list of model checkpoints used to fill the grid. 
   * The number of models must be a perfect square, e.g. 1, 4, 9...
 * The argument to `--target_latents` can be either a directory containing a set of `.npy` w-space latent codes, or a list of individual files.

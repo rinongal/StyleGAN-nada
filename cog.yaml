@@ -1,0 +1,33 @@
+build:
+  gpu: true
+  system_packages:
+    - libgl1-mesa-glx
+    - libglib2.0-0
+    - cmake
+    - zip
+    - ffmpeg
+  python_version: 3.7
+  python_packages:
+    - torch==1.7.1
+    - torchvision==0.8.2
+    - torchaudio==0.7.2
+    - ftfy==5.9
+    - regex==2021.4.4
+    - tqdm==4.59.0
+    - opencv-python==4.3.0.38
+    - dlib==19.18.0
+    - matplotlib==3.1.3
+    - Pillow==8.3.1
+    - scipy==1.4.1
+  pre_install:
+    - "mkdir /content"
+    - "git clone https://github.com/omertov/encoder4editing.git /content/encoder4editing"
+    - "wget https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip"
+    - "unzip ninja-linux.zip -d /usr/local/bin/"
+    - "update-alternatives --install /usr/bin/ninja ninja /usr/local/bin/ninja 1 --force"
+    - "wget -O /content/shape_predictor_68_face_landmarks.dat.bz2 http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2"
+    - "cd /content && bzip2 -dk shape_predictor_68_face_landmarks.dat.bz2"
+    - "echo > /content/encoder4editing/__init__.py"
+    - |
+      sed -i 's/img = PIL.Image.open(filepath)/img = PIL.Image.open(filepath).convert(\"RGB\")/' /content/encoder4editing/utils/alignment.py
+predict: cog_predict.py:Predictor

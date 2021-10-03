@@ -2,7 +2,7 @@
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](http://colab.research.google.com/github/rinongal/stylegan-nada/blob/main/stylegan_nada.ipynb) [![arXiv](https://img.shields.io/badge/arXiv-2108.00946-b31b1b.svg)](https://arxiv.org/abs/2108.00946)
 
-[[Project Website](https://stylegan-nada.github.io/)]
+[[Project Website](https://stylegan-nada.github.io/)] [[Replicate.ai Project](https://replicate.ai/rinongal/stylegan-nada)]
 
 > **StyleGAN-NADA: CLIP-Guided Domain Adaptation of Image Generators**<br>
 > Rinon Gal, Or Patashnik, Haggai Maron, Gal Chechik, Daniel Cohen-Or <br>
@@ -28,6 +28,9 @@ In some cases, you may need to switch to the [e4e](https://github.com/omertov/en
 
 ## Updates
 
+**03/10/2021 (A)** Interpolation video script now supports InterfaceGAN based-editing. <br>
+**03/10/2021 (B)** Updated the notebook with support for target style images. <br>
+**03/10/2021 (C)** Added [replicate.ai](https://replicate.ai/rinongal/stylegan-nada) support. You can now run inference or generate videos without needing to setup anything or work with code. <br>
 **22/08/2021** Added a script for generating cross-domain interpolation videos (similar to the top video in the project page). <br>
 **21/08/2021 (A)** Added the ability to mimic styles from an image set. See the usage section. <br>
 **21/08/2021 (B)** Added dockerized UI tool. <br>
@@ -142,13 +145,17 @@ python generate_videos.py --ckpt /model_dir/pixar.pt             \
 * The argument to `--target_latents` can be either a directory containing a set of `.npy` w-space latent codes, or a list of individual files.
 * Please see the script for more details.
 
-We provide [example latent codes](https://drive.google.com/file/d/1E4lkAKJhZlfLeKOtKrRcqN-Te-8IotYm/view?usp=sharing) for the same identity used in our video. If you want to generate your own, we recommend using [StyleCLIP](https://github.com/orpatashnik/StyleCLIP), [InterFaceGAN](https://github.com/genforce/interfacegan), [StyleFlow](https://github.com/RameenAbdal/StyleFlow), [GANSpace](https://github.com/harskish/ganspace) or any other latent space editing method. 
+We provide [example latent codes](https://drive.google.com/file/d/1E4lkAKJhZlfLeKOtKrRcqN-Te-8IotYm/view?usp=sharing) for the same identity used in our video. If you want to generate your own, we recommend using [StyleCLIP](https://github.com/orpatashnik/StyleCLIP), [InterFaceGAN](https://github.com/genforce/interfacegan), [StyleFlow](https://github.com/RameenAbdal/StyleFlow), [GANSpace](https://github.com/harskish/ganspace) or any other latent space editing method.
+
+**03/10/2021** We now provide editing directions for use in video generation. To use the built-in directions, omit the ```--target_latents``` argument. You can use specific editing directions from the available list by passing them with the ```--edit_directions``` flag. See ```generate_videos.py``` for more information. <br>
 
 ## Related Works
 
 The concept of using CLIP to guide StyleGAN generation results was introduced in [StyleCLIP](https://arxiv.org/abs/2103.17249) (Patashnik et al.).
 
-We invert real images into the GAN's latent space using [ReStyle](https://arxiv.org/abs/2104.02699) (Alaluf et al.)
+We invert real images into the GAN's latent space using [ReStyle](https://arxiv.org/abs/2104.02699) (Alaluf et al.).
+
+Editing directions for video generation were taken from [Anycost GAN](https://github.com/mit-han-lab/anycost-gan) (Lin et al.).
 
 ## Citation
 

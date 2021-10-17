@@ -56,7 +56,7 @@ class SG3Generator(torch.nn.Module):
     def style(self, z_codes, truncation=1.0):
         return self.generator.mapping(z_codes[0], None, truncation_psi=truncation, truncation_cutoff=8)
 
-    def forward(self, styles, input_is_latent=None, truncation=None, randomize_noise=None):
+    def forward(self, styles, input_is_latent=None, truncation=None, randomize_noise=None): # unused args for compatibility with SG2 interface
         return self.generator.synthesis(styles, noise_mode='const', force_fp32=True), None
 
 
@@ -194,13 +194,18 @@ class ZSSGAN(torch.nn.Module):
 
         self.device = 'cuda:0'
 
-        # Set up frozen (source) generator
-        self.generator_frozen = SG2Generator(args.frozen_gen_ckpt, img_size=args.size).to(self.device)
+        # Set up twin generators
+        if args.sg3:
+            self.generator_frozen = SG3Generator(args.frozen_gen_ckpt)
+            self.generator_trainable = SG3Generator(args.train_gen_ckpt)
+        else:
+            self.generator_frozen = SG2Generator(args.frozen_gen_ckpt, img_size=args.size).to(self.device)
+            self.generator_trainable = SG2Generator(args.train_gen_ckpt, img_size=args.size).to(self.device)
+
+        # freeze relevant layers
         self.generator_frozen.freeze_layers()
         self.generator_frozen.eval()
-
-        # Set up trainable (target) generator
-        self.generator_trainable = SG2Generator(args.train_gen_ckpt, img_size=args.size).to(self.device)
+        
         self.generator_trainable.freeze_layers()
         self.generator_trainable.unfreeze_layers(self.generator_trainable.get_training_layers(args.phase))
         self.generator_trainable.train()
@@ -231,7 +236,11 @@ class ZSSGAN(torch.nn.Module):
     def set_img2img_direction(self):
         with torch.no_grad():
             sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
-            generated = self.generator_trainable([sample_z])[0]
+
+            if self.args.sg3:
+                generated = self.generator_trainable(self.generator_frozen.style([sample_z]))[0]
+            else:
+                generated = self.generator_trainable([sample_z])[0]
 
             for _, model in self.clip_loss_models.items():
                 direction = model.compute_img2img_direction(generated, self.args.target_img_list)

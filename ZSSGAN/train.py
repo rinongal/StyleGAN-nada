@@ -39,6 +39,8 @@ from model.ZSSGAN import ZSSGAN
 
 import shutil
 import json
+import pickle
+import copy
 
 from utils.file_utils import copytree, save_images, save_paper_image_grid
 from utils.training_utils import mixing_noise
@@ -110,13 +112,23 @@ def train(args):
                     save_images(sampled_dst, sample_dir, "dst", grid_rows, i)
 
         if (args.save_interval is not None) and (i > 0) and (i % args.save_interval == 0):
-            torch.save(
-                {
-                    "g_ema": net.generator_trainable.generator.state_dict(),
-                    "g_optim": g_optim.state_dict(),
-                },
-                f"{ckpt_dir}/{str(i).zfill(6)}.pt",
-            )
+
+            if args.sg3:
+
+                snapshot_data = {'G_ema': copy.deepcopy(net.generator_trainable.generator).eval().requires_grad_(False).cpu()}
+                snapshot_pkl = f'{ckpt_dir}/{str(i).zfill(6)}.pkl'
+
+                with open(snapshot_pkl, 'wb') as f:
+                    pickle.dump(snapshot_data, f)
+
+            else:
+                torch.save(
+                    {
+                        "g_ema": net.generator_trainable.generator.state_dict(),
+                        "g_optim": g_optim.state_dict(),
+                    },
+                    f"{ckpt_dir}/{str(i).zfill(6)}.pt",
+                )
 
     for i in range(args.num_grid_outputs):
         net.eval()

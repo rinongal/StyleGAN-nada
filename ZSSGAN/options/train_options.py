@@ -36,6 +36,12 @@ class TrainOptions(object):
             help="Strength of directional clip loss",
         )
 
+        self.parser.add_argument(
+            "--sg3", 
+            help="Enables support for StyleGAN-3 models",
+            action="store_true"
+        )
+
         ######################################################################################################
         # Non direction losses are unused in the paper. They are left here for those who want to experiment. #
         ######################################################################################################

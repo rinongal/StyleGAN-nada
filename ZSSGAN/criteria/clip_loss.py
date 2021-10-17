@@ -178,7 +178,11 @@ class CLIPLoss(torch.nn.Module):
         target_encoding = self.get_image_features(target_img)
 
         edit_direction = (target_encoding - src_encoding)
-        edit_direction /= edit_direction.clone().norm(dim=-1, keepdim=True)
+        if edit_direction.sum() == 0:
+            target_encoding = self.get_image_features(target_img + 1e-6)
+            edit_direction = (target_encoding - src_encoding)
+
+        edit_direction /= (edit_direction.clone().norm(dim=-1, keepdim=True))
         
         return self.direction_loss(edit_direction, self.target_direction).mean()
 

@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 
 import numpy as np
 import copy
+import pickle
 
 from functools import partial
 
@@ -17,6 +18,47 @@ from ZSSGAN.criteria.clip_loss import CLIPLoss
 def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag
+
+class SG3Generator(torch.nn.Module):
+    def __init__(self, checkpoint_path):
+        super(SG3Generator, self).__init__()
+
+        with open(checkpoint_path, 'rb') as f:
+            self.generator = pickle.load(f)['G_ema'].cuda()
+
+    def get_all_layers(self):
+        return list(self.generator.synthesis.children())
+
+    def get_training_layers(self, phase=None):
+        return self.get_all_layers()[:11] + self.get_all_layers()[12:13] + self.get_all_layers()[14:]
+
+    def freeze_layers(self, layer_list=None):
+        '''
+        Disable training for all layers in list.
+        '''
+        if layer_list is None:
+            self.freeze_layers(self.get_all_layers())
+        else:
+            for layer in layer_list:
+                requires_grad(layer, False)
+
+    def unfreeze_layers(self, layer_list=None):
+        '''
+        Enable training for all layers in list.
+        '''
+        if layer_list is None:
+            self.unfreeze_layers(self.get_all_layers())
+        else:
+            for layer in layer_list:
+                requires_grad(layer, True)
+                requires_grad(layer.affine, False)
+
+    def style(self, z_codes, truncation=1.0):
+        return self.generator.mapping(z_codes[0], None, truncation_psi=truncation, truncation_cutoff=8)
+
+    def forward(self, styles, input_is_latent=None, truncation=None, randomize_noise=None):
+        return self.generator.synthesis(styles, noise_mode='const', force_fp32=True), None
+
 
 class SG2Generator(torch.nn.Module):
     def __init__(self, checkpoint_path, latent_size=512, map_layers=8, img_size=256, channel_multiplier=2, device='cuda:0'):

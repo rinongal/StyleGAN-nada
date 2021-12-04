@@ -153,12 +153,12 @@ class ZSSGAN(torch.nn.Module):
         self.device = 'cuda:0'
 
         # Set up frozen (source) generator
-        self.generator_frozen = SG2Generator(args.frozen_gen_ckpt, img_size=args.size).to(self.device)
+        self.generator_frozen = SG2Generator(args.frozen_gen_ckpt, img_size=args.size, channel_multiplier=args.channel_multiplier).to(self.device)
         self.generator_frozen.freeze_layers()
         self.generator_frozen.eval()
 
         # Set up trainable (target) generator
-        self.generator_trainable = SG2Generator(args.train_gen_ckpt, img_size=args.size).to(self.device)
+        self.generator_trainable = SG2Generator(args.train_gen_ckpt, img_size=args.size, channel_multiplier=args.channel_multiplier).to(self.device)
         self.generator_trainable.freeze_layers()
         self.generator_trainable.unfreeze_layers(self.generator_trainable.get_training_layers(args.phase))
         self.generator_trainable.train()

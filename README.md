@@ -1,6 +1,7 @@
 # StyleGAN-NADA: CLIP-Guided Domain Adaptation of Image Generators
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](http://colab.research.google.com/github/rinongal/stylegan-nada/blob/main/stylegan_nada.ipynb) [![arXiv](https://img.shields.io/badge/arXiv-2108.00946-b31b1b.svg)](https://arxiv.org/abs/2108.00946)
+[![CGP](https://img.shields.io/badge/CGP-Paper%20Summary-blueviolet)](https://www.casualganpapers.com/text-guided-clip-gan-domain-adaptation/StyleGAN-NADA-explained.html)
 
 [[Project Website](https://stylegan-nada.github.io/)] [[Replicate.ai Project](https://replicate.ai/rinongal/stylegan-nada)]
 
@@ -172,7 +173,12 @@ If you make use of our work, please cite our paper:
 }
 ```
 
-## Additional examples:
+## StyleGAN3 Version
+
+See the [StyleGAN3 branch](https://github.com/rinongal/StyleGAN-nada/tree/StyleGAN3-NADA) for a partial re-implementation using StyleGAN3. 
+Keep in mind that StyleGAN3 introduces some new artifacts when fine-tuning the model. We will try to resolve them or add support for additional tools (inversion etc) as they become available.
+
+## Additional Examples
 
 Our method can be used to enable out-of-domain editing of real images, using pre-trained, off-the-shelf inversion networks. Here are a few more examples:
 

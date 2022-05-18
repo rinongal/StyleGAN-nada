@@ -57,6 +57,8 @@ def train(args):
     print("Initializing networks...")
     net = ZSSGAN(args)
 
+    z_dim = 64 if args.sgxl else 512
+
     g_reg_ratio = args.g_reg_every / (args.g_reg_every + 1) # using original SG2 params. Not currently using r1 regularization, may need to change.
 
     g_optim = torch.optim.Adam(
@@ -77,13 +79,13 @@ def train(args):
     np.random.seed(2)
 
     # Training loop
-    fixed_z = torch.randn(args.n_sample, 512, device=device)
+    fixed_z = torch.randn(args.n_sample, z_dim, device=device)
 
     for i in tqdm(range(args.iter)):
 
         net.train()
 
-        sample_z = mixing_noise(args.batch, 512, args.mixing, device)
+        sample_z = mixing_noise(args.batch, z_dim, args.mixing, device)
 
         [sampled_src, sampled_dst], loss = net(sample_z)
 
@@ -113,7 +115,7 @@ def train(args):
 
         if (args.save_interval is not None) and (i > 0) and (i % args.save_interval == 0):
 
-            if args.sg3:
+            if args.sg3 or args.sgxl:
 
                 snapshot_data = {'G_ema': copy.deepcopy(net.generator_trainable.generator).eval().requires_grad_(False).cpu()}
                 snapshot_pkl = f'{ckpt_dir}/{str(i).zfill(6)}.pkl'
@@ -134,7 +136,7 @@ def train(args):
         net.eval()
 
         with torch.no_grad():
-            sample_z = mixing_noise(16, 512, 0, device)
+            sample_z = mixing_noise(16, z_dim, 0, device)
             [sampled_src, sampled_dst], _ = net(sample_z, truncation=args.sample_truncation)
 
             if args.crop_for_cars:

@@ -126,6 +126,7 @@ class CLIPLoss(torch.nn.Module):
 
             target_encodings = []
             for target_img in target_images:
+                
                 preprocessed = self.clip_preprocess(Image.open(target_img)).unsqueeze(0).to(self.device)
                 
                 encoding = self.model.encode_image(preprocessed)

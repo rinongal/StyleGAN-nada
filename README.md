@@ -2,12 +2,12 @@
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](http://colab.research.google.com/github/rinongal/stylegan-nada/blob/main/stylegan_nada.ipynb) 
 [![Kaggle](https://camo.githubusercontent.com/a08ca511178e691ace596a95d334f73cf4ce06e83a5c4a5169b8bb68cac27bef/68747470733a2f2f6b6167676c652e636f6d2f7374617469632f696d616765732f6f70656e2d696e2d6b6167676c652e737667)](https://www.kaggle.com/ratthachat/stylegan-nada-playground) [![arXiv](https://img.shields.io/badge/arXiv-2108.00946-b31b1b.svg)](https://arxiv.org/abs/2108.00946)
-[![CGP](https://img.shields.io/badge/CGP-Paper%20Summary-blueviolet)](https://www.casualganpapers.com/text-guided-clip-gan-domain-adaptation/StyleGAN-NADA-explained.html)
+[![CGP](https://img.shields.io/badge/CGP-Paper%20Summary-blueviolet)](https://www.casualganpapers.com/text-guided-clip-gan-domain-adaptation/StyleGAN-NADA-explained.html)[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/rinong/StyleGAN-NADA)
 
 [[Project Website](https://stylegan-nada.github.io/)] [[Replicate.ai Project](https://replicate.ai/rinongal/stylegan-nada)]
 
 > **StyleGAN-NADA: CLIP-Guided Domain Adaptation of Image Generators**<br>
-> Rinon Gal, Or Patashnik, Haggai Maron, Gal Chechik, Daniel Cohen-Or <br>
+> Rinon Gal, Or Patashnik, Haggai Maron, Amit H. Bermano, Gal Chechik, Daniel Cohen-Or <br>
 
 >**Abstract**: <br>
 > Can a generative model be trained to produce images from a specific domain, guided by a text prompt only, without seeing any image? In other words: can an image generator be trained blindly? Leveraging the semantic power of large scale Contrastive-Language-Image-Pre-training (CLIP) models, we present a text-driven method that allows shifting a generative model to new domains, without having to collect even a single image from those domains.
@@ -29,7 +29,8 @@ Most edits will work well with the [pSp](https://github.com/eladrich/pixel2style
 In some cases, you may need to switch to the [e4e](https://github.com/omertov/encoder4editing) based encoder for better editing at the cost of reconstruction accuracy.
 
 ## Updates
-
+**18/05/2022 (A)** Added [HuggingFace Spaces demo](https://huggingface.co/spaces/rinong/StyleGAN-NADA)  <br>
+**18/05/2022 (B)** Added (partial) StyleGAN-XL support <br>
 **03/10/2021 (A)** Interpolation video script now supports InterfaceGAN based-editing. <br>
 **03/10/2021 (B)** Updated the notebook with support for target style images. <br>
 **03/10/2021 (C)** Added [replicate.ai](https://replicate.ai/rinongal/stylegan-nada) support. You can now run inference or generate videos without needing to setup anything or work with code. <br>
@@ -103,6 +104,11 @@ Some results of converting an FFHQ model using children's drawings, LSUN Cars us
 
 ![](img/few_shot_samples.jpg)
 
+**18/05/2022**
+StyleGAN3 / StyleGAN-XL models can be trained by appending the `--sg3` or `--sgxl` flags to the training command. Please note that StyleGAN-3 based models (and XL among them) may display grid artifacts under fine-tuning, and that neither model currently supports layer freezing.
+
+See [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](http://colab.research.google.com/github/rinongal/stylegan-nada/blob/main/stylegan3_nada.ipynb) for an example of training with SG3.
+
 ## Pre-Trained Models
 
 We provide a [Google Drive](https://drive.google.com/drive/folders/1Z76nD8pXIL2O5f6xV8VjM4DUCmhbzn0l?usp=sharing) containing an assortment of models used in the paper, tweets and other locations.
@@ -173,11 +179,6 @@ If you make use of our work, please cite our paper:
       primaryClass={cs.CV}
 }
 ```
-
-## StyleGAN3 Version
-
-See the [StyleGAN3 branch](https://github.com/rinongal/StyleGAN-nada/tree/StyleGAN3-NADA) for a partial re-implementation using StyleGAN3. 
-Keep in mind that StyleGAN3 introduces some new artifacts when fine-tuning the model. We will try to resolve them or add support for additional tools (inversion etc) as they become available.
 
 ## Additional Examples
 

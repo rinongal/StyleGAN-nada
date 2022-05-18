@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -206,6 +206,7 @@ def _filtered_lrelu_cuda(up=1, down=1, padding=0, gain=np.sqrt(2), slope=0.2, cl
             write_signs = (si.numel() == 0) and (x.requires_grad or b.requires_grad)
 
             # Warn if input storage strides are not in decreasing order due to e.g. channels-last layout.
+            x = x.contiguous()
             strides = [x.stride(i) for i in range(x.ndim) if x.size(i) > 1]
             if any(a < b for a, b in zip(strides[:-1], strides[1:])):
                 warnings.warn("low-performance memory layout detected in filtered_lrelu input", RuntimeWarning)

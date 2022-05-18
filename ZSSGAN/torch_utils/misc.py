@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -143,6 +143,26 @@ class InfiniteSampler(torch.utils.data.Sampler):
 
 #----------------------------------------------------------------------------
 # Utilities for operating with torch.nn.Module parameters and buffers.
+def spectral_to_cpu(model: torch.nn.Module):
+    def wrapped_in_spectral(m): return hasattr(m, 'weight_v')
+    children = get_children(model)
+    for child in children:
+        if wrapped_in_spectral(child):
+            child.weight = child.weight.cpu()
+    return model
+
+def get_children(model: torch.nn.Module):
+    children = list(model.children())
+    flatt_children = []
+    if children == []:
+        return model
+    else:
+       for child in children:
+            try:
+                flatt_children.extend(get_children(child))
+            except TypeError:
+                flatt_children.append(get_children(child))
+    return flatt_children
 
 def params_and_buffers(module):
     assert isinstance(module, torch.nn.Module)
@@ -264,3 +284,9 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
     return outputs
 
 #----------------------------------------------------------------------------
+
+# Added by Katja
+import os
+
+def get_ckpt_path(run_dir):
+    return os.path.join(run_dir, f'network-snapshot.pkl')

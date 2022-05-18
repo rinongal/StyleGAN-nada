@@ -42,6 +42,12 @@ class TrainOptions(object):
             action="store_true"
         )
 
+        self.parser.add_argument(
+            "--sgxl", 
+            help="Enables support for StyleGAN-XL models",
+            action="store_true"
+        )
+
         ######################################################################################################
         # Non direction losses are unused in the paper. They are left here for those who want to experiment. #
         ######################################################################################################

@@ -14,6 +14,7 @@ from functools import partial
 
 from ZSSGAN.model.sg2_model import Generator, Discriminator
 from ZSSGAN.criteria.clip_loss import CLIPLoss       
+import ZSSGAN.legacy as legacy
 
 def requires_grad(model, flag=True):
     for p in model.parameters():
@@ -29,8 +30,70 @@ class SG3Generator(torch.nn.Module):
     def get_all_layers(self):
         return list(self.generator.synthesis.children())
 
+    def trainable_params(self):
+        params = []
+        for layer in self.get_training_layers():
+            params.extend(layer.parameters())
+
+        return params
+
     def get_training_layers(self, phase=None):
         return self.get_all_layers()[:11] + self.get_all_layers()[12:13] + self.get_all_layers()[14:]
+
+    def freeze_layers(self, layer_list=None):
+        '''
+        Disable training for all layers in list.
+        '''
+        if layer_list is None:
+            self.freeze_layers(self.generator.children())
+        else:
+            for layer in layer_list:
+                requires_grad(layer, False)
+
+    def unfreeze_layers(self, layer_list=None):
+        '''
+        Enable training for all layers in list.
+        '''
+
+        if layer_list is None:
+            self.unfreeze_layers(self.get_all_layers())
+        else:
+            for layer in layer_list:
+                requires_grad(layer, True)
+                
+                if hasattr(layer, "affine"):
+                    requires_grad(layer.affine, False)
+                else:
+                    for child_layer in layer.children():
+                        requires_grad(child_layer.affine, False)
+                if hasattr(layer, "torgb"):
+                    requires_grad(layer.torgb, False)
+
+    def style(self, z_codes, truncation=0.7):
+        return self.generator.mapping(z_codes[0], None, truncation_psi=truncation, truncation_cutoff=None)
+
+    def forward(self, styles, input_is_latent=None, truncation=None, randomize_noise=None): # unused args for compatibility with SG2 interface
+        return self.generator.synthesis(styles, noise_mode='random', force_fp32=True), None
+
+class SGXLGenerator(torch.nn.Module):
+    def __init__(self, checkpoint_path):
+        super(SGXLGenerator, self).__init__()
+
+        with open(checkpoint_path, 'rb') as f:
+            self.generator = legacy.load_network_pkl(f)['G_ema'].cuda() # type: ignore
+
+    def get_all_layers(self):
+        return list(self.generator.synthesis.children())
+
+    def get_training_layers(self, phase=None):
+        return self.get_all_layers()
+
+    def trainable_params(self):
+        params = []
+        for layer in self.get_training_layers():
+            params.extend(layer.parameters())
+
+        return params
 
     def freeze_layers(self, layer_list=None):
         '''
@@ -57,8 +120,7 @@ class SG3Generator(torch.nn.Module):
         return self.generator.mapping(z_codes[0], None, truncation_psi=truncation, truncation_cutoff=8)
 
     def forward(self, styles, input_is_latent=None, truncation=None, randomize_noise=None): # unused args for compatibility with SG2 interface
-        return self.generator.synthesis(styles, noise_mode='const', force_fp32=True), None
-
+        return self.generator.synthesis(styles, noise_mode='random', force_fp32=True), None
 
 class SG2Generator(torch.nn.Module):
     def __init__(self, checkpoint_path, latent_size=512, map_layers=8, img_size=256, channel_multiplier=2, device='cuda:0'):
@@ -98,6 +160,13 @@ class SG2Generator(torch.nn.Module):
         else: 
             # everything except mapping and ToRGB
             return list(self.get_all_layers())[1:3] + list(self.get_all_layers()[4][:])  
+
+    def trainable_params(self):
+        params = []
+        for layer in self.get_training_layers():
+            params.extend(layer.parameters())
+
+        return params
 
     def freeze_layers(self, layer_list=None):
         '''
@@ -198,6 +267,9 @@ class ZSSGAN(torch.nn.Module):
         if args.sg3:
             self.generator_frozen = SG3Generator(args.frozen_gen_ckpt)
             self.generator_trainable = SG3Generator(args.train_gen_ckpt)
+        elif args.sgxl:
+            self.generator_frozen = SGXLGenerator(args.frozen_gen_ckpt)
+            self.generator_trainable = SGXLGenerator(args.train_gen_ckpt)
         else:
             self.generator_frozen = SG2Generator(args.frozen_gen_ckpt, img_size=args.size).to(self.device)
             self.generator_trainable = SG2Generator(args.train_gen_ckpt, img_size=args.size).to(self.device)
@@ -235,9 +307,10 @@ class ZSSGAN(torch.nn.Module):
 
     def set_img2img_direction(self):
         with torch.no_grad():
-            sample_z  = torch.randn(self.args.img2img_batch, 512, device=self.device)
+            z_dim    = 64 if self.args.sgxl else 512
+            sample_z = torch.randn(self.args.img2img_batch, z_dim, device=self.device)
 
-            if self.args.sg3:
+            if self.args.sg3 or self.args.sgxl:
                 generated = self.generator_trainable(self.generator_frozen.style([sample_z]))[0]
             else:
                 generated = self.generator_trainable([sample_z])[0]
@@ -248,8 +321,8 @@ class ZSSGAN(torch.nn.Module):
                 model.target_direction = direction
 
     def determine_opt_layers(self):
-
-        sample_z = torch.randn(self.args.auto_layer_batch, 512, device=self.device)
+        z_dim    = 64 if self.args.sgxl else 512
+        sample_z = torch.randn(self.args.auto_layer_batch, z_dim, device=self.device)
 
         initial_w_codes = self.generator_frozen.style([sample_z])
         initial_w_codes = initial_w_codes[0].unsqueeze(1).repeat(1, self.generator_frozen.generator.n_latent, 1)
@@ -323,6 +396,9 @@ class ZSSGAN(torch.nn.Module):
                 w_styles = self.generator_frozen.style(styles)
             
             frozen_img = self.generator_frozen(w_styles, input_is_latent=True, truncation=truncation, randomize_noise=randomize_noise)[0]
+
+            if self.args.sg3 or self.args.sgxl:
+                frozen_img = frozen_img + torch.randn_like(frozen_img) * 5e-4 # add random noise to add stochasticity in place of noise injections
 
         trainable_img = self.generator_trainable(w_styles, input_is_latent=True, truncation=truncation, randomize_noise=randomize_noise)[0]
         

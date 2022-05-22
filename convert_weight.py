@@ -224,7 +224,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    sys.path.append(args.repo)
+    sys.path.insert(0, args.repo)
 
     import dnnlib
     from dnnlib import tflib

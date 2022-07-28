@@ -64,6 +64,9 @@ class CLIPLoss(torch.nn.Module):
                                         preprocess_cnn.transforms[:2] +                                                 # to match CLIP input scale assumptions
                                         preprocess_cnn.transforms[4:])                                                  # + skip convert PIL to tensor
 
+        self.model.requires_grad_(False)
+        self.model_cnn.requires_grad_(False)
+
         self.texture_loss = torch.nn.MSELoss()
 
     def tokenize(self, strings: list):
